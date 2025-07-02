@@ -9,7 +9,7 @@ columns = joblib.load("columns.pkl")
 
 # Các cột đầu vào
 base_cols = ['Nha_ve_sinh', 'Cau_truc', 'Dien_tich (m2)', 'Dien_tich_su_dung (m2)', 'Hem_duong (m)']
-quans = [col.replace("Quan_", "") for col in columns if col.startswith("Quan_")]
+quans = [col.replace("Quan_", "").strip() for col in columns if col.startswith("Quan_")]
 
 st.title("💡 Dự đoán giá nhà tại TP.HCM")
 
@@ -24,7 +24,7 @@ user_input["Quan"] = f"Quan_{selected_quan.strip()}"
 # Tạo DataFrame từ input
 input_df = pd.DataFrame([user_input])
 
-# One-hot encode thủ công cho cột Quan đã chuẩn hóa
+# One-hot encode thủ công cho cột Quan
 for col in columns:
     if col.startswith("Quan_"):
         input_df[col] = 1 if col == user_input["Quan"] else 0
