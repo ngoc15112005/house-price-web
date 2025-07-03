@@ -1,45 +1,38 @@
-import streamlit as st
-import joblib
-import pandas as pd
+import streamlit as st, pandas as pd, joblib, os
 
-# Load model, scaler và danh sách cột
-model = joblib.load("model.pkl")
-scaler = joblib.load("scaler.pkl")
-columns = joblib.load("columns.pkl")
+# ---- load ---
+model   = joblib.load("model.pkl")      # LinearRegression
+scaler  = joblib.load("scaler.pkl")     # RobustScaler đã fit
+columns = joblib.load("columns.pkl")    # list cột đúng
 
-# Các cột đầu vào
-base_cols = ['Nha_ve_sinh', 'Cau_truc', 'Dien_tich (m2)', 'Dien_tich_su_dung (m2)', 'Hem_duong (m)']
-quans = [col.replace("Quan_", "").strip() for col in columns if col.startswith("Quan_")]
+# ---- danh sách quận (từ columns.pkl) ---
+quan_cols = [c for c in columns if c not in
+             ['Nha_ve_sinh','Cau_truc','Dien_tich (m2)',
+              'Dien_tich_su_dung (m2)','Hem_duong (m)']]
 
-st.title("💡 Dự đoán giá nhà tại TP.HCM")
+pretty = [c.replace("_"," ") for c in quan_cols]
+map_pretty = dict(zip(pretty, quan_cols))
 
-# Nhập liệu người dùng
-user_input = {}
-for col in base_cols:
-    user_input[col] = st.number_input(f"{col}", value=0.0)
+# ---- UI ----
+st.title("📊 Dự đoán giá nhà TP.HCM")
 
-selected_quan = st.selectbox("Chọn quận", quans)
-user_input["Quan"] = f"Quan_{selected_quan.strip()}"
+nha  = st.number_input("Nha_ve_sinh", 0.0, step=1.0, value=3.0)
+cau  = st.number_input("Cau_truc",      0.0, step=1.0, value=3.0)
+dt   = st.number_input("Dien_tich (m2)", 0.0, step=1.0, value=43.0)
+dtsd = st.number_input("Dien_tich_su_dung (m2)", 0.0, step=1.0, value=115.0)
+hem  = st.number_input("Hem_duong (m)", 0.0, step=0.5, value=4.0)
+quan = st.selectbox("Chọn quận", pretty, index=pretty.index("Quận 8"))
 
-# Tạo DataFrame từ input
-input_df = pd.DataFrame([user_input])
+if st.button("Dự đoán"):
+    # base
+    data = {'Nha_ve_sinh':nha,'Cau_truc':cau,'Dien_tich (m2)':dt,
+            'Dien_tich_su_dung (m2)':dtsd,'Hem_duong (m)':hem}
+    # one-hot
+    for q in quan_cols:
+        data[q] = 1 if q == map_pretty[quan] else 0
 
-# One-hot encode thủ công cho cột Quan
-for col in columns:
-    if col.startswith("Quan_"):
-        input_df[col] = 1 if col == user_input["Quan"] else 0
+    X = pd.DataFrame([data]).reindex(columns=columns, fill_value=0)
+    X_scaled = scaler.transform(X)           # dùng scaler đã fit
+    price = model.predict(X_scaled)[0]
 
-input_base = input_df[base_cols]
-input_quan = input_df[[col for col in columns if col.startswith("Quan_")]]
-input_processed = pd.concat([input_base, input_quan], axis=1)
-
-# Căn chỉnh đúng thứ tự cột
-input_aligned = input_processed.reindex(columns=columns, fill_value=0)
-
-# Chuẩn hóa và dự đoán
-input_scaled = scaler.transform(input_aligned)
-prediction = model.predict(input_scaled)[0]
-
-# Kết quả
-st.subheader("💰 Giá nhà dự đoán:")
-st.success(f"{prediction:,.2f} tỷ đồng")
+    st.success(f"💰 Giá nhà dự đoán: **{price:,.2f} tỷ đồng**")
